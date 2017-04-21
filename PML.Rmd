@@ -1,0 +1,88 @@
+---
+title: "Pratical Machine Learning Project"
+author: "jliangmkt"
+date: "4/20/2017"
+output: html_document
+---
+#Summary
+The Project is to discover the relationship between the target variable "classe" with other variables in the data from http://groupware.les.inf.puc-rio.br/har (Human Activity Recognition) for the Coursera Practical Machine Learning course. "Classe" variable contains 5 levels: A, B, C, D, E, and each is an answer in the quiz. 
+#Load libraries and the dataset
+```{r, echo=T}
+library(knitr)
+#set seed
+set.seed(123)
+#Load Packages
+library(caret)
+library(e1071)
+library(rpart) #For simple Decision Tree Model
+library(rpart.plot) #Tree plotting
+library(randomForest) #For rf Model
+library(kknn) #For K-nearest Model
+setwd("/Users/JayLiang/Desktop/Coursera")
+#Download and load datasets
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv","./PML/pml-training.csv",method="curl")
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv","./PML/pml-testing.csv",method="curl")
+training<-read.csv("./PML/pml-training.csv",na.strings=c("NA","#DIV/0!", ""),header=TRUE)
+testing<-read.csv("./PML/pml-testing.csv",na.strings=c("NA","#DIV/0!", ""),header=TRUE)
+
+#Clean colums with more than 20% missing values
+delete<- which(colSums(is.na(training))>0.2*nrow(training))
+
+trainingnona<-training[,-c(delete)]
+testingnona<-testing[,-c(delete)]
+#Exclude descriptive variables
+training<-trainingnona[,-(1:7)]
+testing<-testingnona[,-(1:7)]
+
+#Create cross_training and cross_testing dataset in the training 
+inTrain <- createDataPartition(y=training$classe,p=0.7,list=FALSE)
+Cross_train <- training[inTrain,]
+Cross_test <- training[-inTrain,]
+dim(Cross_train) #Check the dimissions of the training dataset
+```
+
+#Cross-validation spliting training set
+```{r,echo=TRUE}
+inTrain <- createDataPartition(y=training$classe,p=0.7,list=FALSE)
+Cross_train <- training[inTrain,]
+Cross_test <- training[-inTrain,]
+```
+
+#Build Models
+##Simple Decision Tree
+```{r,echo=TRUE}
+Mod_rpart<-rpart(classe~.,method="class",data=Cross_train)
+#Plot the tree
+rpart.plot(Mod_rpart,extra=100,under=TRUE)
+prediction_rpart<- predict(Mod_rpart,Cross_test,type="class")
+confusionMatrix(prediction_rpart, Cross_test$classe)
+```
+
+##Random Forest modeling
+```{r,echo=TRUE}
+Mod_rf<-train(classe~.,method="rf",data=Cross_train)
+prediction_rf<- predict(Mod_rf,Cross_test,type="raw")
+confusionMatrix(prediction_rf, Cross_test$classe)
+```
+
+##K-nearest modeling
+```{r,echo=TRUE}
+Mod_kknn<-train(classe~.,method="kknn",data=Cross_train)
+prediction_kknn<- predict(Mod_kknn,Cross_test,type="raw")
+confusionMatrix(prediction_kknn, Cross_test$classe)
+```
+
+#Forecast
+Answer the quiz as what showed in the output
+```{r,echo=TRUE}
+#Apply 3 models into the testing set
+Prediction_Test_rpart<-as.array(predict(Mod_rpart,testing,type="class"))
+Prediction_Test_rf<-as.array(predict(Mod_rf,testing))
+Prediction_Test_kknn<-as.array(predict(Mod_kknn,testing))
+
+Prediction_All3<-data.frame(Prediction_Test_rpart,Prediction_Test_rf,Prediction_Test_kknn)
+
+#From the above result, rpart model is less consistant with the other tow. And according to the confusionMatrix on the Cross_test set, the rpart model is least accurate and randomForest model is highly accurate with a cuucracy of 0.9939 
+#Chose rf model to do the prediction
+data.frame(Prediction_Test_rf)
+```
